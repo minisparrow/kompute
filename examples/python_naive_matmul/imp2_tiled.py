@@ -2,6 +2,7 @@ import time
 
 import kp
 import numpy as np
+from typing import Tuple as tuple
 
 
 class MatMulOp:
