@@ -11,6 +11,7 @@ class MatMulOp:
         self.mgr = manager
 
         props = self.mgr.get_device_properties()
+        print(props)
         max_workgroup_invocation = props['max_work_group_invocations']
         max_workgroup_size = props['max_work_group_size']
         if local_size_x < 1:
@@ -42,31 +43,9 @@ class MatMulOp:
         assert local_size_y <= max_workgroup_size[1]
         self.local_size_x = local_size_x
         self.local_size_y = local_size_y
-
-        self.shader = '''
-#version 450
-
-layout (local_size_x = {local_size_x}, local_size_y = {local_size_y}) in;
-
-layout (set = 0, binding = 0) readonly buffer buf_in_tensor_1 {{ float in_tensor_1[]; }};
-layout (set = 0, binding = 1) readonly buffer buf_in_tensor_2 {{ float in_tensor_2[]; }};
-layout (set = 0, binding = 2) writeonly buffer buf_out_tensor {{ float out_tensor[]; }};
-
-layout (constant_id = 0) const float tensor_size_f = 0;
-
-
-void main()
-{{
-    uint globalRow = gl_GlobalInvocationID.x;
-    uint globalCol = gl_GlobalInvocationID.y;
-    uint tensor_size = uint(tensor_size_f);
-    float acc = 0.0;
-    for(uint k = 0u; k < tensor_size; k++)
-        acc += in_tensor_1[(k * tensor_size) + globalRow] * in_tensor_2[(globalCol * tensor_size) + k];
-    out_tensor[(globalCol * tensor_size) + globalRow] = acc;
-}}'''
-        self.compiled_shader = kp.Shader.compile_source(self.shader.format(
-            local_size_x=self.local_size_x, local_size_y=self.local_size_y))
+        with open('simple_gemm.glsl', 'r') as f:
+            self.str_shader = f.read()
+        self.compiled_shader = kp.Shader.compile_source(self.str_shader)
         self.tensor_shape: tuple[int, int] = (0, 0)
         self.params: list[kp.Tensor] = []
         self.algo = None
@@ -80,8 +59,7 @@ void main()
             self.params = params
             local_size_x = min(self.local_size_x, tensor_shape[0])
             local_size_y = min(self.local_size_y, tensor_shape[1])
-            self.compiled_shader = kp.Shader.compile_source(self.shader.format(
-                local_size_x=local_size_x, local_size_y=local_size_y))
+            self.compiled_shader = kp.Shader.compile_source(self.str_shader)
             workgroup = (tensor_shape[0] // local_size_x, tensor_shape[1] // local_size_y, 1)
             print(f'{workgroup=} {self.local_size_x=} {self.local_size_y=}')
             self.algo = self.mgr.algorithm(
