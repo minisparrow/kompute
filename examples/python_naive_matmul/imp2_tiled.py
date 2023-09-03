@@ -93,6 +93,12 @@ def main():
           f'{experiment_count / experiment_time:0.2f}op/s or '
           f'{experiment_count * op_count / (1e9 * experiment_time):0.2f} GFLOPS')
 
+    a = np.triu(np.ones(tensor_shape))
+    b = np.triu(np.ones(tensor_shape))
+    c = np.dot(a, b)
+    print(c)
+     
+
 
 if __name__ == '__main__':
     main()
